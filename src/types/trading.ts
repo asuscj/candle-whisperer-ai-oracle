@@ -45,3 +45,27 @@ export interface PerformanceMetrics {
   winRate: number;
   totalTrades: number;
 }
+
+export interface TimeframeOption {
+  value: string;
+  label: string;
+  duration: number; // in milliseconds
+}
+
+export interface BacktestResult {
+  totalTrades: number;
+  winRate: number;
+  profitFactor: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+  returns: number[];
+  equity: number[];
+}
+
+export interface OnlineLearningMetrics {
+  samplesProcessed: number;
+  reservoirSize: number;
+  memoryUsage: number;
+  lastUpdate: number;
+  adaptationRate: number;
+}

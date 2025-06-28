@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,15 +5,25 @@ import TradingChart from '@/components/TradingChart';
 import PatternDetector from '@/components/PatternDetector';
 import MLDashboard from '@/components/MLDashboard';
 import TradingPairSelector from '@/components/TradingPairSelector';
-import { CandleData, CandlePattern, TradingPair, MLPrediction, PerformanceMetrics } from '@/types/trading';
+import TimeframeSelector from '@/components/TimeframeSelector';
+import AdvancedPatternVisualizer from '@/components/AdvancedPatternVisualizer';
+import BacktestingPanel from '@/components/BacktestingPanel';
+import OnlineLearningMetricsComponent from '@/components/OnlineLearningMetrics';
+import { CandleData, CandlePattern, TradingPair, MLPrediction, PerformanceMetrics, TimeframeOption, OnlineLearningMetrics } from '@/types/trading';
 import { DataProvider } from '@/utils/dataProvider';
 import { CandlePatternDetector } from '@/utils/candlePatterns';
 import { MLPredictor } from '@/utils/mlPredictor';
+import { OnlineLearningSystem } from '@/utils/onlineLearning';
 import { useToast } from '@/hooks/use-toast';
 import { Activity, Brain, Play, Square, RefreshCw } from 'lucide-react';
 
 const Index = () => {
   const [selectedPair, setSelectedPair] = useState<TradingPair | null>(null);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeOption>({
+    value: '1m',
+    label: '1 Minuto',
+    duration: 60000
+  });
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [patterns, setPatterns] = useState<CandlePattern[]>([]);
   const [prediction, setPrediction] = useState<MLPrediction | null>(null);
@@ -28,6 +37,14 @@ const Index = () => {
     profitFactor: 1.45,
     winRate: 0.64,
     totalTrades: 127
+  });
+  const [onlineLearning] = useState(() => new OnlineLearningSystem(1000));
+  const [onlineLearningMetrics, setOnlineLearningMetrics] = useState<OnlineLearningMetrics>({
+    samplesProcessed: 0,
+    reservoirSize: 0,
+    memoryUsage: 0,
+    lastUpdate: Date.now(),
+    adaptationRate: 0.1
   });
 
   const { toast } = useToast();
@@ -47,20 +64,20 @@ const Index = () => {
     }
   }, [selectedPair]);
 
-  // Real-time data simulation
+  // Real-time data simulation with timeframe support
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (isRunning && selectedPair) {
       interval = setInterval(() => {
         updateRealTimeData();
-      }, 2000); // Update every 2 seconds
+      }, selectedTimeframe.duration); // Use selected timeframe duration
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, selectedPair]);
+  }, [isRunning, selectedPair, selectedTimeframe]);
 
   const loadInitialData = async () => {
     if (!selectedPair) return;
@@ -97,7 +114,11 @@ const Index = () => {
     // Generate new candle
     const lastCandle = candles[candles.length - 1];
     const newCandle = DataProvider.generateHistoricalData(selectedPair, 1)[0];
-    newCandle.timestamp = lastCandle.timestamp + 60000;
+    newCandle.timestamp = lastCandle.timestamp + selectedTimeframe.duration;
+
+    // Add to online learning system
+    onlineLearning.addSample(newCandle);
+    setOnlineLearningMetrics(onlineLearning.getMetrics());
 
     const updatedCandles = [...candles.slice(-199), newCandle]; // Keep last 200 candles
     setCandles(updatedCandles);
@@ -175,7 +196,7 @@ const Index = () => {
         <div className="flex items-center gap-3 mb-2">
           <Activity className="h-8 w-8 text-blue-500" />
           <h1 className="text-3xl font-bold text-white">
-            Trading AI - Análisis de Velas Japonesas
+            Trading AI - Análisis Avanzado de Velas
           </h1>
           <div className="flex items-center gap-2">
             <div className={`h-3 w-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
@@ -185,12 +206,12 @@ const Index = () => {
           </div>
         </div>
         <p className="text-gray-400">
-          Detección automática de patrones y predicción ML en tiempo real para Forex y Criptomonedas
+          Sistema completo con Online Learning, Backtesting y Visualización Avanzada de Patrones
         </p>
       </div>
 
-      {/* Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      {/* Enhanced Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="md:col-span-2">
           <TradingPairSelector
             pairs={availablePairs}
@@ -198,6 +219,10 @@ const Index = () => {
             onSelect={setSelectedPair}
           />
         </div>
+        <TimeframeSelector
+          selectedTimeframe={selectedTimeframe}
+          onTimeframeChange={setSelectedTimeframe}
+        />
         <Button
           onClick={handleStartStop}
           className={`${isRunning ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
@@ -233,14 +258,14 @@ const Index = () => {
         </Button>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Content with Enhanced Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Chart - Takes up 2 columns */}
         <div className="lg:col-span-2">
           <Card className="bg-gray-900 border-gray-700">
             <CardHeader>
               <CardTitle className="text-white flex items-center justify-between">
-                <span>Gráfico de Velas - {selectedPair?.symbol || 'No seleccionado'}</span>
+                <span>Gráfico - {selectedPair?.symbol || 'No seleccionado'} ({selectedTimeframe.label})</span>
                 <div className="text-sm text-gray-400">
                   {candles.length} velas cargadas
                 </div>
@@ -252,7 +277,7 @@ const Index = () => {
                   candles={candles}
                   patterns={patterns}
                   prediction={prediction ? {
-                    timestamp: Date.now() + 60000,
+                    timestamp: Date.now() + selectedTimeframe.duration,
                     value: prediction.nextCandle.close,
                     confidence: prediction.nextCandle.confidence
                   } : undefined}
@@ -266,27 +291,46 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="space-y-6">
+        {/* Right Sidebar - Enhanced */}
+        <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pattern Detection */}
-          <PatternDetector patterns={patterns} />
+          <div className="space-y-4">
+            <PatternDetector patterns={patterns} />
+            <OnlineLearningMetricsComponent 
+              metrics={onlineLearningMetrics} 
+              isActive={isRunning}
+            />
+          </div>
           
-          {/* ML Dashboard */}
-          <MLDashboard
-            prediction={prediction}
-            metrics={metrics}
-            isTraining={isTraining}
-          />
+          {/* ML Dashboard and Advanced Visualizer */}
+          <div className="space-y-4">
+            <MLDashboard
+              prediction={prediction}
+              metrics={metrics}
+              isTraining={isTraining}
+            />
+            <AdvancedPatternVisualizer
+              patterns={patterns}
+              candles={candles}
+              isRealTime={isRunning}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Status Bar */}
+      {/* Backtesting Panel */}
+      <div className="mt-6">
+        <BacktestingPanel candles={candles} />
+      </div>
+
+      {/* Enhanced Status Bar */}
       <div className="mt-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-4 text-gray-400">
             <span>Última actualización: {new Date().toLocaleTimeString()}</span>
-            <span>Patrones detectados: {patterns.length}</span>
-            <span>Precisión ML: {(metrics.accuracy * 100).toFixed(1)}%</span>
+            <span>Timeframe: {selectedTimeframe.label}</span>
+            <span>Patrones: {patterns.length}</span>
+            <span>Online Learning: {onlineLearningMetrics.samplesProcessed} muestras</span>
           </div>
           <div className="text-green-400">
             {isRunning ? '🟢 Sistema activo' : '🔴 Sistema inactivo'}
