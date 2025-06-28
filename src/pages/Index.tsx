@@ -9,11 +9,14 @@ import TimeframeSelector from '@/components/TimeframeSelector';
 import AdvancedPatternVisualizer from '@/components/AdvancedPatternVisualizer';
 import BacktestingPanel from '@/components/BacktestingPanel';
 import OnlineLearningMetricsComponent from '@/components/OnlineLearningMetrics';
+import ValidationMetricsComponent from '@/components/ValidationMetrics';
 import { CandleData, CandlePattern, TradingPair, MLPrediction, PerformanceMetrics, TimeframeOption, OnlineLearningMetrics } from '@/types/trading';
 import { DataProvider } from '@/utils/dataProvider';
 import { CandlePatternDetector } from '@/utils/candlePatterns';
 import { MLPredictor } from '@/utils/mlPredictor';
-import { OnlineLearningSystem } from '@/utils/onlineLearning';
+import { EnhancedOnlineLearningSystem } from '@/utils/enhancedOnlineLearning';
+import { RealTimeValidationSystem, ValidationMetrics } from '@/utils/validationSystem';
+import { ErrorLearningMetrics } from '@/utils/enhancedOnlineLearning';
 import { useToast } from '@/hooks/use-toast';
 import { Activity, Brain, Play, Square, RefreshCw } from 'lucide-react';
 
@@ -38,7 +41,10 @@ const Index = () => {
     winRate: 0.64,
     totalTrades: 127
   });
-  const [onlineLearning] = useState(() => new OnlineLearningSystem(1000));
+  
+  // Enhanced learning systems
+  const [enhancedLearning] = useState(() => new EnhancedOnlineLearningSystem(1000));
+  const [validationSystem] = useState(() => new RealTimeValidationSystem());
   const [onlineLearningMetrics, setOnlineLearningMetrics] = useState<OnlineLearningMetrics>({
     samplesProcessed: 0,
     reservoirSize: 0,
@@ -46,6 +52,23 @@ const Index = () => {
     lastUpdate: Date.now(),
     adaptationRate: 0.1
   });
+  const [validationMetrics, setValidationMetrics] = useState<ValidationMetrics>({
+    totalPredictions: 0,
+    correctPredictions: 0,
+    accuracyTrend: [],
+    patternSuccessRate: {},
+    averageErrorMagnitude: 0,
+    recentAccuracy: 0
+  });
+  const [errorLearningMetrics, setErrorLearningMetrics] = useState<ErrorLearningMetrics>({
+    totalErrors: 0,
+    averageError: 0,
+    errorTrend: [],
+    learningRate: 0.01,
+    adaptationStrength: 0.1,
+    convergenceRate: 0
+  });
+  const [currentPredictionId, setCurrentPredictionId] = useState<string | null>(null);
 
   const { toast } = useToast();
   const availablePairs = DataProvider.getAvailablePairs();
@@ -64,14 +87,14 @@ const Index = () => {
     }
   }, [selectedPair]);
 
-  // Real-time data simulation with timeframe support
+  // Enhanced real-time data with validation
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (isRunning && selectedPair) {
       interval = setInterval(() => {
-        updateRealTimeData();
-      }, selectedTimeframe.duration); // Use selected timeframe duration
+        updateRealTimeDataWithValidation();
+      }, selectedTimeframe.duration);
     }
 
     return () => {
@@ -92,6 +115,10 @@ const Index = () => {
       if (historicalData.length >= 20) {
         const mlPrediction = MLPredictor.predict(historicalData);
         setPrediction(mlPrediction);
+        
+        // Register prediction for validation
+        const predictionId = validationSystem.addPrediction(mlPrediction);
+        setCurrentPredictionId(predictionId);
       }
 
       toast({
@@ -108,7 +135,7 @@ const Index = () => {
     }
   };
 
-  const updateRealTimeData = () => {
+  const updateRealTimeDataWithValidation = () => {
     if (!selectedPair || candles.length === 0) return;
 
     // Generate new candle
@@ -116,9 +143,32 @@ const Index = () => {
     const newCandle = DataProvider.generateHistoricalData(selectedPair, 1)[0];
     newCandle.timestamp = lastCandle.timestamp + selectedTimeframe.duration;
 
-    // Add to online learning system
-    onlineLearning.addSample(newCandle);
-    setOnlineLearningMetrics(onlineLearning.getMetrics());
+    // Validate previous prediction if exists
+    if (currentPredictionId) {
+      const validation = validationSystem.validatePrediction(currentPredictionId, newCandle);
+      if (validation) {
+        // Learn from the error
+        enhancedLearning.learnFromError(validation);
+        
+        // Update metrics
+        setValidationMetrics(validationSystem.getValidationMetrics());
+        setErrorLearningMetrics(enhancedLearning.getErrorLearningMetrics());
+        
+        // Update performance metrics based on validation
+        setMetrics(prev => ({
+          ...prev,
+          accuracy: validation.accuracy,
+          totalTrades: prev.totalTrades + 1,
+          winRate: validation.patternSuccess ? 
+            (prev.winRate * prev.totalTrades + 1) / (prev.totalTrades + 1) :
+            (prev.winRate * prev.totalTrades) / (prev.totalTrades + 1)
+        }));
+      }
+    }
+
+    // Add to enhanced learning system
+    enhancedLearning.addSample(newCandle);
+    setOnlineLearningMetrics(enhancedLearning.getMetrics());
 
     const updatedCandles = [...candles.slice(-199), newCandle]; // Keep last 200 candles
     setCandles(updatedCandles);
@@ -127,18 +177,15 @@ const Index = () => {
     const newPatterns = CandlePatternDetector.detectPatterns(updatedCandles);
     setPatterns(newPatterns);
 
-    // Update prediction
+    // Generate new prediction
     if (updatedCandles.length >= 20) {
       try {
         const newPrediction = MLPredictor.predict(updatedCandles);
         setPrediction(newPrediction);
         
-        // Simulate metrics updates
-        setMetrics(prev => ({
-          ...prev,
-          totalTrades: prev.totalTrades + (Math.random() < 0.1 ? 1 : 0),
-          accuracy: Math.max(0.5, Math.min(0.95, prev.accuracy + (Math.random() - 0.5) * 0.02))
-        }));
+        // Register new prediction for validation
+        const predictionId = validationSystem.addPrediction(newPrediction);
+        setCurrentPredictionId(predictionId);
       } catch (error) {
         console.error('Error generating prediction:', error);
       }
@@ -171,7 +218,6 @@ const Index = () => {
         description: "El modelo ML ha sido entrenado con los datos actuales"
       });
       
-      // Update metrics after training
       setMetrics(prev => ({
         ...prev,
         accuracy: Math.min(0.95, prev.accuracy + 0.05),
@@ -206,7 +252,7 @@ const Index = () => {
           </div>
         </div>
         <p className="text-gray-400">
-          Sistema completo con Online Learning, Backtesting y Visualización Avanzada de Patrones
+          Sistema completo con Online Learning, Validación en Tiempo Real y Aprendizaje de Errores
         </p>
       </div>
 
@@ -258,7 +304,7 @@ const Index = () => {
         </Button>
       </div>
 
-      {/* Main Content with Enhanced Layout */}
+      {/* Enhanced Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Chart - Takes up 2 columns */}
         <div className="lg:col-span-2">
@@ -291,9 +337,9 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Right Sidebar - Enhanced */}
+        {/* Enhanced Right Sidebar */}
         <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pattern Detection */}
+          {/* Left Column */}
           <div className="space-y-4">
             <PatternDetector patterns={patterns} />
             <OnlineLearningMetricsComponent 
@@ -302,24 +348,28 @@ const Index = () => {
             />
           </div>
           
-          {/* ML Dashboard and Advanced Visualizer */}
+          {/* Right Column */}
           <div className="space-y-4">
             <MLDashboard
               prediction={prediction}
               metrics={metrics}
               isTraining={isTraining}
             />
-            <AdvancedPatternVisualizer
-              patterns={patterns}
-              candles={candles}
-              isRealTime={isRunning}
+            <ValidationMetricsComponent
+              validationMetrics={validationMetrics}
+              errorLearningMetrics={errorLearningMetrics}
             />
           </div>
         </div>
       </div>
 
-      {/* Backtesting Panel */}
-      <div className="mt-6">
+      {/* Enhanced Lower Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <AdvancedPatternVisualizer
+          patterns={patterns}
+          candles={candles}
+          isRealTime={isRunning}
+        />
         <BacktestingPanel candles={candles} />
       </div>
 
@@ -330,7 +380,8 @@ const Index = () => {
             <span>Última actualización: {new Date().toLocaleTimeString()}</span>
             <span>Timeframe: {selectedTimeframe.label}</span>
             <span>Patrones: {patterns.length}</span>
-            <span>Online Learning: {onlineLearningMetrics.samplesProcessed} muestras</span>
+            <span>Validaciones: {validationMetrics.totalPredictions}</span>
+            <span>Precisión: {(validationMetrics.recentAccuracy * 100).toFixed(1)}%</span>
           </div>
           <div className="text-green-400">
             {isRunning ? '🟢 Sistema activo' : '🔴 Sistema inactivo'}
