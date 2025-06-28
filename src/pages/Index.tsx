@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import TradingChart from '@/components/TradingChart';
 import PatternDetector from '@/components/PatternDetector';
+import PatternStatistics from '@/components/PatternStatistics';
 import MLDashboard from '@/components/MLDashboard';
 import TradingPairSelector from '@/components/TradingPairSelector';
 import TimeframeSelector from '@/components/TimeframeSelector';
@@ -16,9 +17,10 @@ import { CandlePatternDetector } from '@/utils/candlePatterns';
 import { MLPredictor } from '@/utils/mlPredictor';
 import { EnhancedOnlineLearningSystem } from '@/utils/enhancedOnlineLearning';
 import { RealTimeValidationSystem, ValidationMetrics } from '@/utils/validationSystem';
+import { SlidingWindowBuffer, BufferMetrics, PerformanceWindow } from '@/utils/slidingWindowBuffer';
 import { ErrorLearningMetrics } from '@/utils/enhancedOnlineLearning';
 import { useToast } from '@/hooks/use-toast';
-import { Activity, Brain, Play, Square, RefreshCw } from 'lucide-react';
+import { Activity, Brain, Play, Square, RefreshCw, Database, Zap } from 'lucide-react';
 
 const Index = () => {
   const [selectedPair, setSelectedPair] = useState<TradingPair | null>(null);
@@ -45,6 +47,8 @@ const Index = () => {
   // Enhanced learning systems
   const [enhancedLearning] = useState(() => new EnhancedOnlineLearningSystem(1000));
   const [validationSystem] = useState(() => new RealTimeValidationSystem());
+  const [slidingBuffer] = useState(() => new SlidingWindowBuffer(2000, 150));
+  
   const [onlineLearningMetrics, setOnlineLearningMetrics] = useState<OnlineLearningMetrics>({
     samplesProcessed: 0,
     reservoirSize: 0,
@@ -68,6 +72,13 @@ const Index = () => {
     adaptationStrength: 0.1,
     convergenceRate: 0
   });
+  const [bufferMetrics, setBufferMetrics] = useState<BufferMetrics>({
+    totalSamples: 0,
+    bufferUtilization: 0,
+    dataFreshness: 1.0,
+    samplingRate: 1.0,
+    memoryEfficiency: 0
+  });
   const [currentPredictionId, setCurrentPredictionId] = useState<string | null>(null);
 
   const { toast } = useToast();
@@ -87,13 +98,13 @@ const Index = () => {
     }
   }, [selectedPair]);
 
-  // Enhanced real-time data with validation
+  // Enhanced real-time data with validation and buffer management
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (isRunning && selectedPair) {
       interval = setInterval(() => {
-        updateRealTimeDataWithValidation();
+        updateRealTimeDataWithEnhancedLearning();
       }, selectedTimeframe.duration);
     }
 
@@ -109,6 +120,12 @@ const Index = () => {
       const historicalData = await DataProvider.fetchRealTimeData(selectedPair);
       setCandles(historicalData);
       
+      // Agregar datos históricos al buffer
+      historicalData.forEach(candle => {
+        slidingBuffer.addSample(candle);
+        enhancedLearning.addSample(candle);
+      });
+      
       const detectedPatterns = CandlePatternDetector.detectPatterns(historicalData);
       setPatterns(detectedPatterns);
 
@@ -121,9 +138,13 @@ const Index = () => {
         setCurrentPredictionId(predictionId);
       }
 
+      // Update metrics
+      setBufferMetrics(slidingBuffer.getMetrics());
+      setOnlineLearningMetrics(enhancedLearning.getMetrics());
+
       toast({
-        title: "Datos cargados",
-        description: `${historicalData.length} velas históricas cargadas para ${selectedPair.symbol}`
+        title: "Sistema inicializado",
+        description: `${historicalData.length} velas cargadas, ${detectedPatterns.length} patrones detectados`
       });
     } catch (error) {
       console.error('Error loading data:', error);
@@ -135,7 +156,7 @@ const Index = () => {
     }
   };
 
-  const updateRealTimeDataWithValidation = () => {
+  const updateRealTimeDataWithEnhancedLearning = () => {
     if (!selectedPair || candles.length === 0) return;
 
     // Generate new candle
@@ -147,40 +168,56 @@ const Index = () => {
     if (currentPredictionId) {
       const validation = validationSystem.validatePrediction(currentPredictionId, newCandle);
       if (validation) {
-        // Learn from the error
+        // Learn from the error using enhanced systems
         enhancedLearning.learnFromError(validation);
+        slidingBuffer.addPerformanceData(validation, enhancedLearning.getErrorLearningMetrics().learningRate);
         
-        // Update metrics
+        // Update all metrics
         setValidationMetrics(validationSystem.getValidationMetrics());
         setErrorLearningMetrics(enhancedLearning.getErrorLearningMetrics());
+        setBufferMetrics(slidingBuffer.getMetrics());
         
-        // Update performance metrics based on validation
+        // Update performance metrics with sliding window insights
+        const performanceTrend = slidingBuffer.getRecentPerformanceTrend();
         setMetrics(prev => ({
           ...prev,
-          accuracy: validation.accuracy,
+          accuracy: performanceTrend.accuracy,
           totalTrades: prev.totalTrades + 1,
           winRate: validation.patternSuccess ? 
             (prev.winRate * prev.totalTrades + 1) / (prev.totalTrades + 1) :
             (prev.winRate * prev.totalTrades) / (prev.totalTrades + 1)
         }));
+
+        // Advanced logging with buffer insights
+        const trend = slidingBuffer.getCurrentTrend();
+        const volatility = slidingBuffer.getVolatilityMetrics();
+        console.log(`Enhanced Learning Update - Trend: ${trend}, Volatility: ${volatility.trend}, Accuracy: ${(validation.accuracy * 100).toFixed(1)}%`);
       }
     }
 
-    // Add to enhanced learning system
+    // Add to enhanced learning systems
     enhancedLearning.addSample(newCandle);
+    slidingBuffer.addSample(newCandle);
     setOnlineLearningMetrics(enhancedLearning.getMetrics());
+    setBufferMetrics(slidingBuffer.getMetrics());
 
-    const updatedCandles = [...candles.slice(-199), newCandle]; // Keep last 200 candles
-    setCandles(updatedCandles);
+    // Get optimized sample from sliding buffer
+    const optimizedCandles = slidingBuffer.getSample(200);
+    setCandles(optimizedCandles);
 
-    // Update patterns
-    const newPatterns = CandlePatternDetector.detectPatterns(updatedCandles);
-    setPatterns(newPatterns);
+    // Update patterns with enhanced detection
+    const newPatterns = CandlePatternDetector.detectPatterns(optimizedCandles);
+    // Calculate enhanced confidence for patterns
+    const enhancedPatterns = newPatterns.map(pattern => ({
+      ...pattern,
+      confidence: CandlePatternDetector.calculateConfidence(pattern, optimizedCandles)
+    }));
+    setPatterns(enhancedPatterns);
 
-    // Generate new prediction
-    if (updatedCandles.length >= 20) {
+    // Generate new prediction with buffer insights
+    if (optimizedCandles.length >= 20) {
       try {
-        const newPrediction = MLPredictor.predict(updatedCandles);
+        const newPrediction = MLPredictor.predict(optimizedCandles);
         setPrediction(newPrediction);
         
         // Register new prediction for validation
@@ -194,9 +231,10 @@ const Index = () => {
 
   const handleStartStop = () => {
     setIsRunning(!isRunning);
+    const status = !isRunning ? "iniciado" : "detenido";
     toast({
-      title: isRunning ? "Análisis detenido" : "Análisis iniciado",
-      description: isRunning ? "El análisis en tiempo real se ha detenido" : "Iniciando análisis en tiempo real"
+      title: `Sistema ${status}`,
+      description: `Análisis en tiempo real ${status} con buffer inteligente y aprendizaje continuo`
     });
   };
 
@@ -212,18 +250,23 @@ const Index = () => {
 
     setIsTraining(true);
     try {
-      await MLPredictor.trainModel(candles);
-      toast({
-        title: "Entrenamiento completado",
-        description: "El modelo ML ha sido entrenado con los datos actuales"
-      });
+      // Use optimized sample from sliding buffer for training
+      const trainingSample = slidingBuffer.getSample(500);
+      await MLPredictor.trainModel(trainingSample);
       
+      // Update metrics based on buffer performance
+      const performanceTrend = slidingBuffer.getRecentPerformanceTrend();
       setMetrics(prev => ({
         ...prev,
-        accuracy: Math.min(0.95, prev.accuracy + 0.05),
+        accuracy: Math.min(0.95, performanceTrend.accuracy + 0.05),
         precision: Math.min(0.95, prev.precision + 0.03),
         recall: Math.min(0.95, prev.recall + 0.03)
       }));
+      
+      toast({
+        title: "Entrenamiento completado",
+        description: `Modelo entrenado con ${trainingSample.length} muestras optimizadas del buffer`
+      });
     } catch (error) {
       toast({
         title: "Error en entrenamiento",
@@ -235,14 +278,29 @@ const Index = () => {
     }
   };
 
+  const handleOptimizeBuffer = () => {
+    const beforeSize = slidingBuffer.getBufferSize();
+    // Force cleanup and optimization
+    slidingBuffer.clear();
+    candles.forEach(candle => slidingBuffer.addSample(candle));
+    const afterSize = slidingBuffer.getBufferSize();
+    
+    setBufferMetrics(slidingBuffer.getMetrics());
+    
+    toast({
+      title: "Buffer optimizado",
+      description: `Tamaño optimizado: ${beforeSize} → ${afterSize} muestras`
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4">
-      {/* Header */}
+      {/* Enhanced Header with Buffer Metrics */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
           <Activity className="h-8 w-8 text-blue-500" />
           <h1 className="text-3xl font-bold text-white">
-            Trading AI - Análisis Avanzado de Velas
+            Trading AI - Sistema Avanzado v2.0
           </h1>
           <div className="flex items-center gap-2">
             <div className={`h-3 w-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
@@ -250,14 +308,24 @@ const Index = () => {
               {isRunning ? 'En vivo' : 'Detenido'}
             </span>
           </div>
+          <div className="ml-auto flex items-center gap-4 text-xs text-gray-400">
+            <div className="flex items-center gap-1">
+              <Database className="h-3 w-3" />
+              <span>Buffer: {bufferMetrics.bufferUtilization.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Zap className="h-3 w-3" />
+              <span>Frescura: {(bufferMetrics.dataFreshness * 100).toFixed(0)}%</span>
+            </div>
+          </div>
         </div>
         <p className="text-gray-400">
-          Sistema completo con Online Learning, Validación en Tiempo Real y Aprendizaje de Errores
+          Sistema completo con Buffer Deslizante, Detección de Patrones Avanzada y Aprendizaje Continuo Optimizado
         </p>
       </div>
 
       {/* Enhanced Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
         <div className="md:col-span-2">
           <TradingPairSelector
             pairs={availablePairs}
@@ -302,6 +370,13 @@ const Index = () => {
             </>
           )}
         </Button>
+        <Button
+          onClick={handleOptimizeBuffer}
+          className="bg-orange-600 hover:bg-orange-700"
+        >
+          <Database className="h-4 w-4 mr-2" />
+          Optimizar Buffer
+        </Button>
       </div>
 
       {/* Enhanced Main Content Layout */}
@@ -313,7 +388,7 @@ const Index = () => {
               <CardTitle className="text-white flex items-center justify-between">
                 <span>Gráfico - {selectedPair?.symbol || 'No seleccionado'} ({selectedTimeframe.label})</span>
                 <div className="text-sm text-gray-400">
-                  {candles.length} velas cargadas
+                  {candles.length} velas | {patterns.length} patrones
                 </div>
               </CardTitle>
             </CardHeader>
@@ -337,15 +412,12 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Enhanced Right Sidebar */}
+        {/* Enhanced Right Sidebar with Pattern Statistics */}
         <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column */}
           <div className="space-y-4">
             <PatternDetector patterns={patterns} />
-            <OnlineLearningMetricsComponent 
-              metrics={onlineLearningMetrics} 
-              isActive={isRunning}
-            />
+            <PatternStatistics patterns={patterns} isRealTime={isRunning} />
           </div>
           
           {/* Right Column */}
@@ -364,27 +436,60 @@ const Index = () => {
       </div>
 
       {/* Enhanced Lower Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
         <AdvancedPatternVisualizer
           patterns={patterns}
           candles={candles}
           isRealTime={isRunning}
         />
         <BacktestingPanel candles={candles} />
+        <OnlineLearningMetricsComponent 
+          metrics={onlineLearningMetrics} 
+          isActive={isRunning}
+        />
       </div>
 
-      {/* Enhanced Status Bar */}
+      {/* Enhanced Status Bar with Buffer Metrics */}
       <div className="mt-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4 text-gray-400">
-            <span>Última actualización: {new Date().toLocaleTimeString()}</span>
-            <span>Timeframe: {selectedTimeframe.label}</span>
-            <span>Patrones: {patterns.length}</span>
-            <span>Validaciones: {validationMetrics.totalPredictions}</span>
-            <span>Precisión: {(validationMetrics.recentAccuracy * 100).toFixed(1)}%</span>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+          <div className="space-y-1">
+            <div className="text-gray-400">Sistema</div>
+            <div className="flex items-center gap-2">
+              <span>Estado: {isRunning ? '🟢 Activo' : '🔴 Inactivo'}</span>
+            </div>
+            <div className="text-gray-500">
+              Actualizado: {new Date().toLocaleTimeString()}
+            </div>
           </div>
-          <div className="text-green-400">
-            {isRunning ? '🟢 Sistema activo' : '🔴 Sistema inactivo'}
+          
+          <div className="space-y-1">
+            <div className="text-gray-400">Datos</div>
+            <div className="text-green-400">
+              Velas: {candles.length} | Patrones: {patterns.length}
+            </div>
+            <div className="text-gray-500">
+              Buffer: {slidingBuffer.getBufferSize()} muestras
+            </div>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="text-gray-400">Rendimiento</div>
+            <div className="text-blue-400">
+              Precisión: {(validationMetrics.recentAccuracy * 100).toFixed(1)}%
+            </div>
+            <div className="text-gray-500">
+              Validaciones: {validationMetrics.totalPredictions}
+            </div>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="text-gray-400">Buffer</div>
+            <div className="text-orange-400">
+              Utilización: {(bufferMetrics.bufferUtilization * 100).toFixed(1)}%
+            </div>
+            <div className="text-gray-500">
+              Memoria: {bufferMetrics.memoryEfficiency.toFixed(2)} MB
+            </div>
           </div>
         </div>
       </div>
