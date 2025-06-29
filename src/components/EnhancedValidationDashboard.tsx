@@ -47,6 +47,65 @@ const EnhancedValidationDashboard = ({
     }
   };
 
+  // Función para obtener badge de estado con colores específicos
+  const getStatusBadge = (validation: AutoValidationResult) => {
+    const status = validation.validationStatus;
+    const hasConflict = validation.conflictResolution?.hasConflict;
+    
+    if (status === 'pending') {
+      return (
+        <Badge className="bg-blue-900/30 border-blue-500 text-blue-400 text-xs">
+          ⏳ Pendiente
+        </Badge>
+      );
+    }
+    
+    if (hasConflict) {
+      return (
+        <Badge className="bg-orange-900/30 border-orange-500 text-orange-400 text-xs">
+          ⚠️ Conflicto
+        </Badge>
+      );
+    }
+    
+    if (status === 'validated') {
+      const grade = validation.validatedPrediction?.accuracyGrade;
+      const gradeColors = {
+        excellent: 'bg-emerald-900/30 border-emerald-500 text-emerald-400',
+        good: 'bg-green-900/30 border-green-500 text-green-400',
+        fair: 'bg-yellow-900/30 border-yellow-500 text-yellow-400',
+        poor: 'bg-red-900/30 border-red-500 text-red-400'
+      };
+      
+      const colorClass = grade ? gradeColors[grade] : 'bg-green-900/30 border-green-500 text-green-400';
+      const gradeEmoji = {
+        excellent: '🌟',
+        good: '✅',
+        fair: '⚡',
+        poor: '❌'
+      };
+      
+      return (
+        <Badge className={`${colorClass} text-xs`}>
+          {grade ? gradeEmoji[grade] : '✅'} {grade ? grade.charAt(0).toUpperCase() + grade.slice(1) : 'Validada'}
+        </Badge>
+      );
+    }
+    
+    return (
+      <Badge className="bg-red-900/30 border-red-500 text-red-400 text-xs">
+        ❌ Fallida
+      </Badge>
+    );
+  };
+
+  // Agrupar validaciones por estado
+  const groupedValidations = {
+    validated: recentValidations.filter(v => v.validationStatus === 'validated'),
+    failed: recentValidations.filter(v => v.validationStatus === 'failed'),
+    pending: recentValidations.filter(v => v.validationStatus === 'pending')
+  };
+
   return (
     <div className="space-y-4">
       {/* Main Validation Metrics */}
@@ -162,55 +221,106 @@ const EnhancedValidationDashboard = ({
         </CardContent>
       </Card>
 
-      {/* Recent Validations */}
+      {/* Enhanced Recent Validations with Status Grouping */}
       <Card className="bg-gray-900 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white text-sm">Validaciones Recientes</CardTitle>
+          <CardTitle className="text-white text-sm flex items-center justify-between">
+            <span>Validaciones por Estado</span>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-green-400">✅ {groupedValidations.validated.length}</span>
+              <span className="text-red-400">❌ {groupedValidations.failed.length}</span>
+              <span className="text-blue-400">⏳ {pendingCount}</span>
+            </div>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {recentValidations.slice(0, 5).map((validation, index) => (
-              <div key={validation.predictionId} className="flex items-center justify-between p-2 bg-gray-800/30 rounded text-xs">
-                <div className="flex items-center gap-2">
-                  {validation.signalAccuracy > 0 ? 
-                    <CheckCircle2 className="h-3 w-3 text-green-500" /> :
-                    <XCircle className="h-3 w-3 text-red-500" />
-                  }
-                  <span className="text-gray-300">
-                    {getSignalIcon(validation.conflictResolution.resolvedSignal)} 
-                    {validation.conflictResolution.resolvedSignal.toUpperCase()}
-                  </span>
-                  {validation.conflictResolution.hasConflict && (
-                    <AlertTriangle className="h-3 w-3 text-orange-500" />
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <div className="text-gray-400">
-                    Precio: <span className={getAccuracyColor(validation.priceAccuracy)}>
-                      {(validation.priceAccuracy * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="text-gray-400">
-                    {validation.validationDelay}v
-                  </div>
-                  <Badge className={`text-xs ${
-                    validation.patternSuccess ? 
-                    'bg-green-900/30 border-green-500 text-green-400' :
-                    'bg-red-900/30 border-red-500 text-red-400'
-                  }`}>
-                    {validation.patternSuccess ? '✓' : '✗'}
-                  </Badge>
+          <div className="space-y-3">
+            {/* Validaciones Exitosas */}
+            {groupedValidations.validated.length > 0 && (
+              <div>
+                <h5 className="text-xs text-green-400 font-medium mb-2 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Validadas ({groupedValidations.validated.length})
+                </h5>
+                <div className="space-y-1">
+                  {groupedValidations.validated.slice(0, 3).map((validation) => (
+                    <div key={validation.predictionId} className="flex items-center justify-between p-2 bg-green-900/10 border border-green-800/30 rounded text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-300">
+                          {getSignalIcon(validation.conflictResolution.resolvedSignal)} 
+                          {validation.conflictResolution.resolvedSignal.toUpperCase()}
+                        </span>
+                        {validation.conflictResolution.hasConflict && (
+                          <AlertTriangle className="h-3 w-3 text-orange-500" />
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="text-gray-400">
+                          Score: <span className="text-green-400">
+                            {validation.validatedPrediction?.feedbackScore || 0}
+                          </span>
+                        </div>
+                        <div className="text-gray-400">
+                          {validation.validationDelay}v
+                        </div>
+                        {getStatusBadge(validation)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-            
-            {recentValidations.length === 0 && (
+            )}
+
+            {/* Validaciones Fallidas */}
+            {groupedValidations.failed.length > 0 && (
+              <div>
+                <h5 className="text-xs text-red-400 font-medium mb-2 flex items-center gap-1">
+                  <XCircle className="h-3 w-3" />
+                  Fallidas ({groupedValidations.failed.length})
+                </h5>
+                <div className="space-y-1">
+                  {groupedValidations.failed.slice(0, 2).map((validation) => (
+                    <div key={validation.predictionId} className="flex items-center justify-between p-2 bg-red-900/10 border border-red-800/30 rounded text-xs">
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-3 w-3 text-red-500" />
+                        <span className="text-gray-300">
+                          {getSignalIcon(validation.conflictResolution.resolvedSignal)} 
+                          {validation.conflictResolution.resolvedSignal.toUpperCase()}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="text-gray-400">
+                          Error: <span className="text-red-400">
+                            {(validation.priceAccuracy * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        {getStatusBadge(validation)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mensaje cuando no hay validaciones */}
+            {recentValidations.length === 0 && pendingCount === 0 && (
               <div className="text-center py-4">
                 <p className="text-gray-400 text-sm">No hay validaciones recientes</p>
                 <p className="text-gray-500 text-xs mt-1">
-                  {pendingCount > 0 ? `${pendingCount} predicciones esperando validación` : 'Sistema listo para predicciones'}
+                  Sistema listo para predicciones
                 </p>
+              </div>
+            )}
+
+            {/* Indicador de pendientes */}
+            {pendingCount > 0 && (
+              <div className="p-2 bg-blue-900/10 border border-blue-800/30 rounded text-center">
+                <div className="flex items-center justify-center gap-2 text-xs text-blue-400">
+                  <Clock className="h-3 w-3 animate-pulse" />
+                  <span>{pendingCount} predicciones esperando validación</span>
+                </div>
               </div>
             )}
           </div>

@@ -8,6 +8,28 @@ export interface PredictionValidation {
   validationStatus: 'pending' | 'validated' | 'failed';
 }
 
+// Tipo estricto para predicción validada con granularidad mejorada
+export interface ValidatedPrediction {
+  predictionId: string;
+  timestamp: number;
+  prediction: MLPrediction;
+  actualOutcome: CandleData;
+  wasAccurate: boolean;
+  confidenceInterval: {
+    lower: number;
+    upper: number;
+    actualWithinRange: boolean;
+  };
+  marketReaction: {
+    volatility: number;
+    momentum: number;
+    volumeSpike: boolean;
+    priceShock: boolean;
+  };
+  accuracyGrade: 'excellent' | 'good' | 'fair' | 'poor';
+  feedbackScore: number; // 0-100
+}
+
 export interface AutoValidationResult extends PredictionValidation {
   predictionId: string;
   timestamp: number;
@@ -16,7 +38,7 @@ export interface AutoValidationResult extends PredictionValidation {
   priceAccuracy: number;
   signalAccuracy: number;
   patternSuccess: boolean;
-  validationDelay: number; // candles waited for validation
+  validationDelay: number;
   conflictResolution: {
     hasConflict: boolean;
     patternSignal: 'buy' | 'sell' | 'hold';
@@ -24,6 +46,8 @@ export interface AutoValidationResult extends PredictionValidation {
     resolvedSignal: 'buy' | 'sell' | 'hold';
     confidence: number;
   };
+  // Campos adicionales para granularidad mejorada
+  validatedPrediction?: ValidatedPrediction;
 }
 
 export interface EnhancedValidationMetrics {
@@ -84,6 +108,9 @@ export class EnhancedValidationSystem {
         if (actualCandle) {
           const validation = this.validatePrediction(predictionId, pending, actualCandle, candlesWaited);
           if (validation) {
+            // Crear predicción validada con granularidad mejorada
+            validation.validatedPrediction = this.createValidatedPrediction(validation, candles, currentIndex);
+            
             newValidations.push(validation);
             this.completedValidations.push(validation);
             this.pendingValidations.delete(predictionId);
@@ -93,13 +120,111 @@ export class EnhancedValidationSystem {
               this.completedValidations.shift();
             }
             
-            console.log(`✅ Auto-validation completed: ${predictionId}, Price Accuracy: ${(validation.priceAccuracy * 100).toFixed(1)}%, Signal: ${validation.signalAccuracy ? '✓' : '✗'}`);
+            const grade = validation.validatedPrediction?.accuracyGrade || 'unknown';
+            console.log(`✅ Auto-validation completed: ${predictionId}, Grade: ${grade}, Score: ${validation.validatedPrediction?.feedbackScore || 0}`);
           }
         }
       }
     }
     
     return newValidations;
+  }
+
+  private createValidatedPrediction(
+    validation: AutoValidationResult,
+    candles: CandleData[],
+    currentIndex: number
+  ): ValidatedPrediction {
+    const prediction = validation.prediction;
+    const actual = validation.actualOutcome;
+    const predicted = prediction.nextCandle;
+    
+    // Calcular intervalo de confianza
+    const confidenceRange = predicted.close * 0.02; // 2% range
+    const confidenceInterval = {
+      lower: predicted.close - confidenceRange,
+      upper: predicted.close + confidenceRange,
+      actualWithinRange: actual.close >= (predicted.close - confidenceRange) && 
+                         actual.close <= (predicted.close + confidenceRange)
+    };
+    
+    // Analizar reacción del mercado
+    const marketReaction = this.analyzeMarketReaction(candles, currentIndex);
+    
+    // Determinar si fue precisa
+    const wasAccurate = validation.priceAccuracy > 0.7 && 
+                       validation.signalAccuracy > 0 && 
+                       confidenceInterval.actualWithinRange;
+    
+    // Calcular grado de precisión
+    let accuracyGrade: ValidatedPrediction['accuracyGrade'];
+    const combinedScore = (validation.priceAccuracy + validation.signalAccuracy) / 2;
+    
+    if (combinedScore >= 0.9) accuracyGrade = 'excellent';
+    else if (combinedScore >= 0.75) accuracyGrade = 'good';
+    else if (combinedScore >= 0.6) accuracyGrade = 'fair';
+    else accuracyGrade = 'poor';
+    
+    // Calcular puntuación de feedback (0-100)
+    const feedbackScore = Math.round(
+      (validation.priceAccuracy * 40) + 
+      (validation.signalAccuracy * 30) + 
+      (confidenceInterval.actualWithinRange ? 20 : 0) + 
+      (validation.patternSuccess ? 10 : 0)
+    );
+    
+    return {
+      predictionId: validation.predictionId,
+      timestamp: validation.timestamp,
+      prediction: validation.prediction,
+      actualOutcome: validation.actualOutcome,
+      wasAccurate,
+      confidenceInterval,
+      marketReaction,
+      accuracyGrade,
+      feedbackScore
+    };
+  }
+
+  private analyzeMarketReaction(candles: CandleData[], currentIndex: number): ValidatedPrediction['marketReaction'] {
+    const recentCandles = candles.slice(Math.max(0, currentIndex - 5), currentIndex + 1);
+    const currentCandle = candles[currentIndex];
+    
+    if (recentCandles.length < 2) {
+      return {
+        volatility: 0,
+        momentum: 0,
+        volumeSpike: false,
+        priceShock: false
+      };
+    }
+    
+    // Calcular volatilidad (desviación estándar de precios de cierre)
+    const closePrices = recentCandles.map(c => c.close);
+    const avgPrice = closePrices.reduce((sum, price) => sum + price, 0) / closePrices.length;
+    const volatility = Math.sqrt(
+      closePrices.reduce((sum, price) => sum + Math.pow(price - avgPrice, 2), 0) / closePrices.length
+    ) / avgPrice;
+    
+    // Calcular momentum
+    const firstPrice = recentCandles[0].close;
+    const lastPrice = recentCandles[recentCandles.length - 1].close;
+    const momentum = (lastPrice - firstPrice) / firstPrice;
+    
+    // Detectar picos de volumen
+    const avgVolume = recentCandles.slice(0, -1).reduce((sum, c) => sum + c.volume, 0) / (recentCandles.length - 1);
+    const volumeSpike = currentCandle.volume > avgVolume * 1.5;
+    
+    // Detectar shocks de precio
+    const priceChange = Math.abs(currentCandle.close - currentCandle.open) / currentCandle.open;
+    const priceShock = priceChange > 0.02; // 2% change
+    
+    return {
+      volatility,
+      momentum,
+      volumeSpike,
+      priceShock
+    };
   }
 
   private validatePrediction(
@@ -280,6 +405,33 @@ export class EnhancedValidationSystem {
 
   public getRecentValidations(limit: number = 10): AutoValidationResult[] {
     return this.completedValidations.slice(-limit);
+  }
+
+  public getValidationsByStatus(status: 'pending' | 'validated' | 'failed'): AutoValidationResult[] {
+    if (status === 'pending') {
+      return Array.from(this.pendingValidations.values()).map(pending => ({
+        predictionId: `temp_${pending.timestamp}`,
+        timestamp: pending.timestamp,
+        prediction: pending.prediction,
+        actualOutcome: {} as CandleData,
+        priceAccuracy: 0,
+        signalAccuracy: 0,
+        patternSuccess: false,
+        validationDelay: 0,
+        conflictResolution: {
+          hasConflict: false,
+          patternSignal: 'hold',
+          modelSignal: pending.prediction.signal,
+          resolvedSignal: pending.prediction.signal,
+          confidence: pending.prediction.nextCandle.confidence
+        },
+        accuracy: 0,
+        errorMagnitude: 0,
+        validationStatus: 'pending' as const
+      }));
+    }
+    
+    return this.completedValidations.filter(v => v.validationStatus === status);
   }
 
   public getPendingCount(): number {
