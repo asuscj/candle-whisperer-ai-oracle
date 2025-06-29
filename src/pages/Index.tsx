@@ -18,7 +18,7 @@ import { CandlePatternDetector } from '@/utils/candlePatterns';
 import { MLPredictor } from '@/utils/mlPredictor';
 import { EnhancedOnlineLearningSystem } from '@/utils/enhancedOnlineLearning';
 import { RealTimeValidationSystem, ValidationMetrics } from '@/utils/validationSystem';
-import { EnhancedValidationSystem, EnhancedValidationMetrics } from '@/utils/enhancedValidationSystem';
+import { EnhancedValidationSystem, EnhancedValidationMetrics, AutoValidationResult } from '@/utils/enhancedValidationSystem';
 import { SlidingWindowBuffer, BufferMetrics, PerformanceWindow } from '@/utils/slidingWindowBuffer';
 import { ErrorLearningMetrics } from '@/utils/enhancedOnlineLearning';
 import { useToast } from '@/hooks/use-toast';
@@ -203,8 +203,9 @@ const Index = () => {
       candles.length
     );
 
-    // Learn from validation results
-    newValidations.forEach(validation => {
+    // Learn from validation results - now compatible with PredictionValidation interface
+    newValidations.forEach((validation: AutoValidationResult) => {
+      // AutoValidationResult now extends PredictionValidation, so it's compatible
       enhancedLearning.learnFromError(validation);
       slidingBuffer.addPerformanceData(validation, enhancedLearning.getErrorLearningMetrics().learningRate);
     });

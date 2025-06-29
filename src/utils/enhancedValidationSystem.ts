@@ -1,8 +1,14 @@
-
 import { CandleData, MLPrediction, CandlePattern } from '@/types/trading';
 import { PatternMatch } from '@/utils/clientPatternRecognition';
 
-export interface AutoValidationResult {
+// Tipo base para validación de predicciones
+export interface PredictionValidation {
+  accuracy: number;
+  errorMagnitude: number;
+  validationStatus: 'valid' | 'invalid' | 'pending';
+}
+
+export interface AutoValidationResult extends PredictionValidation {
   predictionId: string;
   timestamp: number;
   prediction: MLPrediction;
@@ -121,6 +127,12 @@ export class EnhancedValidationSystem {
     // Conflict resolution
     const conflictResolution = this.resolveSignalConflicts(prediction, pending.patternContext);
     
+    // Calculate combined accuracy for PredictionValidation compatibility
+    const combinedAccuracy = (priceAccuracy + (signalAccuracy ? 1 : 0)) / 2;
+    const errorMagnitude = priceError * actualClose; // Absolute error in price units
+    const validationStatus: 'valid' | 'invalid' | 'pending' = 
+      combinedAccuracy > 0.6 ? 'valid' : 'invalid';
+    
     return {
       predictionId,
       timestamp: Date.now(),
@@ -130,7 +142,11 @@ export class EnhancedValidationSystem {
       signalAccuracy: signalAccuracy ? 1 : 0,
       patternSuccess,
       validationDelay,
-      conflictResolution
+      conflictResolution,
+      // PredictionValidation properties
+      accuracy: combinedAccuracy,
+      errorMagnitude,
+      validationStatus
     };
   }
 
