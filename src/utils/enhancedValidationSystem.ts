@@ -5,7 +5,7 @@ import { PatternMatch } from '@/utils/clientPatternRecognition';
 export interface PredictionValidation {
   accuracy: number;
   errorMagnitude: number;
-  validationStatus: 'valid' | 'invalid' | 'pending';
+  validationStatus: 'pending' | 'validated' | 'failed';
 }
 
 export interface AutoValidationResult extends PredictionValidation {
@@ -130,8 +130,8 @@ export class EnhancedValidationSystem {
     // Calculate combined accuracy for PredictionValidation compatibility
     const combinedAccuracy = (priceAccuracy + (signalAccuracy ? 1 : 0)) / 2;
     const errorMagnitude = priceError * actualClose; // Absolute error in price units
-    const validationStatus: 'valid' | 'invalid' | 'pending' = 
-      combinedAccuracy > 0.6 ? 'valid' : 'invalid';
+    const validationStatus: 'pending' | 'validated' | 'failed' = 
+      combinedAccuracy > 0.6 ? 'validated' : 'failed';
     
     return {
       predictionId,
