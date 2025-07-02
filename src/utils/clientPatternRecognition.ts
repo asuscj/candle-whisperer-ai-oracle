@@ -144,13 +144,18 @@ export class ClientPatternRecognition {
             const context = this.analyzeContext(candleSeries, i);
             const historicalAccuracy = this.getHistoricalAccuracy(rule.name);
             
+            // Map pattern type to signal
+            const signal = rule.type === 'bullish' ? 'buy' : 
+                          rule.type === 'bearish' ? 'sell' : 'hold';
+            
             matches.push({
               pattern: {
                 name: rule.name,
                 type: rule.type,
                 confidence: score,
                 description: rule.description,
-                position: i
+                position: i,
+                signal
               },
               strength: score,
               context,

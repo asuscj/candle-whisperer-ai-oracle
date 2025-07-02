@@ -196,7 +196,8 @@ export class CandlePatternDetector {
           type: 'neutral',
           confidence: 0.75,
           description: 'Indecisión en el mercado, posible señal de reversión',
-          position: index
+          position: index,
+          signal: 'hold'
         });
       }
 
@@ -206,7 +207,8 @@ export class CandlePatternDetector {
           type: 'bullish',
           confidence: 0.8,
           description: 'Potencial reversión bullish después de tendencia bajista',
-          position: index
+          position: index,
+          signal: 'buy'
         });
       }
 
@@ -216,7 +218,8 @@ export class CandlePatternDetector {
           type: 'bearish',
           confidence: 0.8,
           description: 'Potencial reversión bearish después de tendencia alcista',
-          position: index
+          position: index,
+          signal: 'sell'
         });
       }
 
@@ -226,18 +229,21 @@ export class CandlePatternDetector {
           type: 'neutral',
           confidence: 0.65,
           description: 'Indecisión del mercado con volatilidad',
-          position: index
+          position: index,
+          signal: 'hold'
         });
       }
 
       if (this.isMarubozuPattern(candle)) {
         const type = this.isBullish(candle) ? 'bullish' : 'bearish';
+        const signal = type === 'bullish' ? 'buy' : 'sell';
         patterns.push({
           name: 'Marubozu',
           type,
           confidence: 0.85,
           description: `Fuerte momentum ${type === 'bullish' ? 'alcista' : 'bajista'}`,
-          position: index
+          position: index,
+          signal
         });
       }
 
@@ -248,7 +254,8 @@ export class CandlePatternDetector {
           type: 'bullish',
           confidence: 0.9,
           description: 'Fuerte señal de reversión bullish',
-          position: index
+          position: index,
+          signal: 'buy'
         });
       }
 
@@ -258,7 +265,8 @@ export class CandlePatternDetector {
           type: 'bearish',
           confidence: 0.9,
           description: 'Fuerte señal de reversión bearish',
-          position: index
+          position: index,
+          signal: 'sell'
         });
       }
 
@@ -268,7 +276,8 @@ export class CandlePatternDetector {
           type: 'bullish',
           confidence: 0.75,
           description: 'Posible reversión bullish con consolidación',
-          position: index
+          position: index,
+          signal: 'buy'
         });
       }
 
@@ -278,7 +287,8 @@ export class CandlePatternDetector {
           type: 'bearish',
           confidence: 0.75,
           description: 'Posible reversión bearish con consolidación',
-          position: index
+          position: index,
+          signal: 'sell'
         });
       }
 
@@ -289,7 +299,8 @@ export class CandlePatternDetector {
           type: 'bullish',
           confidence: 0.95,
           description: 'Patrón de reversión bullish muy fuerte',
-          position: index
+          position: index,
+          signal: 'buy'
         });
       }
 
@@ -299,7 +310,8 @@ export class CandlePatternDetector {
           type: 'bearish',
           confidence: 0.95,
           description: 'Patrón de reversión bearish muy fuerte',
-          position: index
+          position: index,
+          signal: 'sell'
         });
       }
     });

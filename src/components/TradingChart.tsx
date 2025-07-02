@@ -123,20 +123,24 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
           {patterns.map((pattern, index) => {
             // Handle both CandlePattern and PatternDetection types
             const position = 'position' in pattern ? pattern.position : 
-              'candleIndex' in pattern ? pattern.candleIndex : 0;
-            const patternName = 'name' in pattern ? pattern.name : pattern.type;
+              ('candleIndex' in pattern ? pattern.candleIndex : 0);
+            const patternName = 'name' in pattern ? pattern.name : 
+              ('type' in pattern ? pattern.type : '');
             
             const candle = candleData[position];
             if (!candle) return null;
             
-            // Determine color based on pattern type
+            // Determine color based on pattern type or signal
             let strokeColor = '#F59E0B'; // Default yellow
-            if ('type' in pattern) {
-              // CandlePattern
+            
+            // Check if it's a CandlePattern
+            if ('type' in pattern && typeof pattern.type === 'string') {
               if (pattern.type === 'bullish') strokeColor = '#10B981';
               else if (pattern.type === 'bearish') strokeColor = '#EF4444';
-            } else if ('signal' in pattern) {
-              // PatternDetection
+            }
+            
+            // Check if it has signal property
+            if ('signal' in pattern && typeof pattern.signal === 'string') {
               if (pattern.signal === 'buy') strokeColor = '#10B981';
               else if (pattern.signal === 'sell') strokeColor = '#EF4444';
             }
