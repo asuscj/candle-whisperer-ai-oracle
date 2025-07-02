@@ -1,11 +1,11 @@
 
 import { create } from 'zustand';
-import { CandlestickData, MLPrediction, PatternDetection } from '../types/trading';
+import { CandleData, MLPrediction, PatternDetection } from '../types/trading';
 import { EnhancedValidationMetrics } from '../utils/enhancedValidationSystem';
 
 interface TradingState {
   // Data
-  candleData: CandlestickData[];
+  candleData: CandleData[];
   patterns: PatternDetection[];
   predictions: MLPrediction[];
   
@@ -19,8 +19,8 @@ interface TradingState {
   validationMetrics: EnhancedValidationMetrics | null;
   
   // Actions
-  setCandleData: (data: CandlestickData[]) => void;
-  addCandle: (candle: CandlestickData) => void;
+  setCandleData: (data: CandleData[]) => void;
+  addCandle: (candle: CandleData) => void;
   setPatterns: (patterns: PatternDetection[]) => void;
   setPredictions: (predictions: MLPrediction[]) => void;
   setIsRunning: (running: boolean) => void;

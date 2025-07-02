@@ -1,12 +1,14 @@
 
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { CandleData, CandlePattern } from '@/types/trading';
+import { CandleData, CandlestickData, CandlePattern, MLPrediction, PatternDetection } from '@/types/trading';
 import { format } from 'date-fns';
 
 interface TradingChartProps {
-  candles: CandleData[];
-  patterns: CandlePattern[];
+  data?: CandlestickData[];
+  candles?: CandleData[];
+  patterns?: (CandlePattern | PatternDetection)[];
+  predictions?: MLPrediction[];
   prediction?: {
     timestamp: number;
     value: number;
@@ -14,9 +16,20 @@ interface TradingChartProps {
   };
 }
 
-const CandlestickChart = ({ candles, patterns, prediction }: TradingChartProps) => {
+const TradingChart = ({ data, candles, patterns = [], predictions, prediction }: TradingChartProps) => {
+  // Use data or candles, with data taking precedence for backwards compatibility
+  const candleData = data || candles || [];
+
+  if (candleData.length === 0) {
+    return (
+      <div data-testid="trading-chart" className="bg-gray-900 rounded-lg p-4 flex items-center justify-center h-96">
+        <p className="text-gray-400">No hay datos para mostrar</p>
+      </div>
+    );
+  }
+
   // Convert candle data for line chart representation
-  const chartData = candles.map(candle => ({
+  const chartData = candleData.map(candle => ({
     timestamp: candle.timestamp,
     time: format(new Date(candle.timestamp), 'HH:mm'),
     open: candle.open,
@@ -63,7 +76,7 @@ const CandlestickChart = ({ candles, patterns, prediction }: TradingChartProps) 
   };
 
   return (
-    <div className="bg-gray-900 rounded-lg p-4">
+    <div data-testid="trading-chart" className="bg-gray-900 rounded-lg p-4">
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -108,19 +121,24 @@ const CandlestickChart = ({ candles, patterns, prediction }: TradingChartProps) 
 
           {/* Pattern markers */}
           {patterns.map((pattern, index) => {
-            const candle = candles[pattern.position];
+            const position = 'position' in pattern ? pattern.position : pattern.candleIndex || 0;
+            const candle = candleData[position];
             if (!candle) return null;
+            
+            const patternType = 'type' in pattern ? pattern.type : 
+              pattern.signal === 'buy' ? 'bullish' : 
+              pattern.signal === 'sell' ? 'bearish' : 'neutral';
             
             return (
               <ReferenceLine
                 key={index}
                 x={format(new Date(candle.timestamp), 'HH:mm')}
-                stroke={pattern.type === 'bullish' ? '#10B981' : pattern.type === 'bearish' ? '#EF4444' : '#F59E0B'}
+                stroke={patternType === 'bullish' ? '#10B981' : patternType === 'bearish' ? '#EF4444' : '#F59E0B'}
                 strokeDasharray="5 5"
                 label={{
-                  value: pattern.name,
+                  value: 'name' in pattern ? pattern.name : pattern.type,
                   position: 'top',
-                  fill: pattern.type === 'bullish' ? '#10B981' : pattern.type === 'bearish' ? '#EF4444' : '#F59E0B'
+                  fill: patternType === 'bullish' ? '#10B981' : patternType === 'bearish' ? '#EF4444' : '#F59E0B'
                 }}
               />
             );
@@ -141,4 +159,4 @@ const CandlestickChart = ({ candles, patterns, prediction }: TradingChartProps) 
   );
 };
 
-export default CandlestickChart;
+export default TradingChart;

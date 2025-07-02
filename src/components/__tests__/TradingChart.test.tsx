@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import TradingChart from '../TradingChart';
-import { CandlestickData } from '../../types/trading';
+import { CandlestickData, PatternDetection, MLPrediction } from '../../types/trading';
 
 describe('TradingChart', () => {
   const mockCandleData: CandlestickData[] = [
@@ -38,13 +38,16 @@ describe('TradingChart', () => {
   });
 
   it('should handle patterns overlay', () => {
-    const mockPatterns = [
+    const mockPatterns: PatternDetection[] = [
       {
-        type: 'hammer' as const,
+        type: 'hammer',
         timestamp: 1640995200000,
         confidence: 0.8,
-        signal: 'buy' as const,
-        candleIndex: 0
+        signal: 'buy',
+        candleIndex: 0,
+        name: 'Hammer',
+        description: 'Bullish reversal pattern',
+        position: 0
       }
     ];
 
@@ -60,10 +63,19 @@ describe('TradingChart', () => {
   });
 
   it('should handle predictions overlay', () => {
-    const mockPredictions = [
+    const mockPredictions: MLPrediction[] = [
       {
+        nextCandle: {
+          open: 106,
+          high: 112,
+          low: 104,
+          close: 110,
+          confidence: 0.75
+        },
+        pattern: 'Bullish Trend',
+        signal: 'buy',
+        accuracy: 0.78,
         predictedPrice: 110,
-        signal: 'buy' as const,
         confidence: 0.75,
         timestamp: 1640995260000
       }

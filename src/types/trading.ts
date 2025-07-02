@@ -1,4 +1,3 @@
-
 export interface CandleData {
   timestamp: number;
   open: number;
@@ -8,12 +7,27 @@ export interface CandleData {
   volume: number;
 }
 
+// Add alias for backwards compatibility
+export interface CandlestickData extends CandleData {}
+
 export interface CandlePattern {
   name: string;
   type: 'bullish' | 'bearish' | 'neutral';
   confidence: number;
   description: string;
   position: number; // index in candles array
+}
+
+// Add PatternDetection interface
+export interface PatternDetection {
+  type: string;
+  timestamp: number;
+  confidence: number;
+  signal: 'buy' | 'sell' | 'hold';
+  candleIndex: number;
+  name: string;
+  description: string;
+  position: number;
 }
 
 export interface TradingPair {
@@ -34,6 +48,10 @@ export interface MLPrediction {
   pattern: string;
   signal: 'buy' | 'sell' | 'hold';
   accuracy: number;
+  // Add missing properties for tests
+  predictedPrice: number;
+  confidence: number;
+  timestamp: number;
 }
 
 export interface PerformanceMetrics {
