@@ -121,24 +121,36 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
 
           {/* Pattern markers */}
           {patterns.map((pattern, index) => {
-            const position = 'position' in pattern ? pattern.position : pattern.candleIndex || 0;
+            // Handle both CandlePattern and PatternDetection types
+            const position = 'position' in pattern ? pattern.position : 
+              'candleIndex' in pattern ? pattern.candleIndex : 0;
+            const patternName = 'name' in pattern ? pattern.name : pattern.type;
+            
             const candle = candleData[position];
             if (!candle) return null;
             
-            const patternType = 'type' in pattern ? pattern.type : 
-              pattern.signal === 'buy' ? 'bullish' : 
-              pattern.signal === 'sell' ? 'bearish' : 'neutral';
+            // Determine color based on pattern type
+            let strokeColor = '#F59E0B'; // Default yellow
+            if ('type' in pattern) {
+              // CandlePattern
+              if (pattern.type === 'bullish') strokeColor = '#10B981';
+              else if (pattern.type === 'bearish') strokeColor = '#EF4444';
+            } else if ('signal' in pattern) {
+              // PatternDetection
+              if (pattern.signal === 'buy') strokeColor = '#10B981';
+              else if (pattern.signal === 'sell') strokeColor = '#EF4444';
+            }
             
             return (
               <ReferenceLine
                 key={index}
                 x={format(new Date(candle.timestamp), 'HH:mm')}
-                stroke={patternType === 'bullish' ? '#10B981' : patternType === 'bearish' ? '#EF4444' : '#F59E0B'}
+                stroke={strokeColor}
                 strokeDasharray="5 5"
                 label={{
-                  value: 'name' in pattern ? pattern.name : pattern.type,
+                  value: patternName,
                   position: 'top',
-                  fill: patternType === 'bullish' ? '#10B981' : patternType === 'bearish' ? '#EF4444' : '#F59E0B'
+                  fill: strokeColor
                 }}
               />
             );

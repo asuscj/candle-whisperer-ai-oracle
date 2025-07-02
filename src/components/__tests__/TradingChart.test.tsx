@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import TradingChart from '../TradingChart';
 import { CandlestickData, PatternDetection, MLPrediction } from '../../types/trading';
 
@@ -25,16 +25,16 @@ describe('TradingChart', () => {
   ];
 
   it('should render chart with data', () => {
-    render(<TradingChart data={mockCandleData} />);
+    const { container } = render(<TradingChart data={mockCandleData} />);
     
     // Should render the chart container
-    expect(screen.getByTestId('trading-chart')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="trading-chart"]')).toBeInTheDocument();
   });
 
   it('should display "No hay datos" when data is empty', () => {
-    render(<TradingChart data={[]} />);
+    const { getByText } = render(<TradingChart data={[]} />);
     
-    expect(screen.getByText('No hay datos para mostrar')).toBeInTheDocument();
+    expect(getByText('No hay datos para mostrar')).toBeInTheDocument();
   });
 
   it('should handle patterns overlay', () => {
@@ -51,7 +51,7 @@ describe('TradingChart', () => {
       }
     ];
 
-    render(
+    const { container } = render(
       <TradingChart 
         data={mockCandleData} 
         patterns={mockPatterns}
@@ -59,7 +59,7 @@ describe('TradingChart', () => {
     );
     
     // Chart should render with pattern data
-    expect(screen.getByTestId('trading-chart')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="trading-chart"]')).toBeInTheDocument();
   });
 
   it('should handle predictions overlay', () => {
@@ -81,7 +81,7 @@ describe('TradingChart', () => {
       }
     ];
 
-    render(
+    const { container } = render(
       <TradingChart 
         data={mockCandleData}
         predictions={mockPredictions}
@@ -89,6 +89,6 @@ describe('TradingChart', () => {
     );
     
     // Chart should render with prediction data
-    expect(screen.getByTestId('trading-chart')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="trading-chart"]')).toBeInTheDocument();
   });
 });

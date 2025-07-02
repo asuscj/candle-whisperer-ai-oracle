@@ -19,7 +19,7 @@ describe('CandlePatternDetector', () => {
       const hammer = createCandle(100, 102, 90, 101); // Small green body, long lower shadow
       const patterns = CandlePatternDetector.detectPatterns([hammer]);
       
-      const hammerPattern = patterns.find(p => p.type === 'hammer');
+      const hammerPattern = patterns.find(p => p.name.toLowerCase().includes('hammer'));
       expect(hammerPattern).toBeDefined();
       expect(hammerPattern?.confidence).toBeGreaterThan(0.7);
       expect(hammerPattern?.signal).toBe('buy');
@@ -30,7 +30,7 @@ describe('CandlePatternDetector', () => {
       const notHammer = createCandle(100, 102, 98, 101);
       const patterns = CandlePatternDetector.detectPatterns([notHammer]);
       
-      const hammerPattern = patterns.find(p => p.type === 'hammer');
+      const hammerPattern = patterns.find(p => p.name.toLowerCase().includes('hammer'));
       expect(hammerPattern).toBeUndefined();
     });
   });
@@ -41,7 +41,7 @@ describe('CandlePatternDetector', () => {
       const doji = createCandle(100, 105, 95, 100.1); // Minimal difference between open/close
       const patterns = CandlePatternDetector.detectPatterns([doji]);
       
-      const dojiPattern = patterns.find(p => p.type === 'doji');
+      const dojiPattern = patterns.find(p => p.name.toLowerCase().includes('doji'));
       expect(dojiPattern).toBeDefined();
       expect(dojiPattern?.confidence).toBeGreaterThan(0.6);
       expect(dojiPattern?.signal).toBe('hold');
@@ -52,7 +52,7 @@ describe('CandlePatternDetector', () => {
       const notDoji = createCandle(100, 105, 95, 103);
       const patterns = CandlePatternDetector.detectPatterns([notDoji]);
       
-      const dojiPattern = patterns.find(p => p.type === 'doji');
+      const dojiPattern = patterns.find(p => p.name.toLowerCase().includes('doji'));
       expect(dojiPattern).toBeUndefined();
     });
   });
@@ -65,7 +65,7 @@ describe('CandlePatternDetector', () => {
       ];
       
       const patterns = CandlePatternDetector.detectPatterns(candles);
-      const engulfingPattern = patterns.find(p => p.type === 'engulfing');
+      const engulfingPattern = patterns.find(p => p.name.toLowerCase().includes('engulfing'));
       
       expect(engulfingPattern).toBeDefined();
       expect(engulfingPattern?.confidence).toBeGreaterThan(0.6);
@@ -79,7 +79,7 @@ describe('CandlePatternDetector', () => {
       ];
       
       const patterns = CandlePatternDetector.detectPatterns(candles);
-      const engulfingPattern = patterns.find(p => p.type === 'engulfing');
+      const engulfingPattern = patterns.find(p => p.name.toLowerCase().includes('engulfing'));
       
       expect(engulfingPattern).toBeDefined();
       expect(engulfingPattern?.confidence).toBeGreaterThan(0.6);

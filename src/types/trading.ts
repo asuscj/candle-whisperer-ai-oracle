@@ -1,3 +1,4 @@
+
 export interface CandleData {
   timestamp: number;
   open: number;
@@ -16,6 +17,7 @@ export interface CandlePattern {
   confidence: number;
   description: string;
   position: number; // index in candles array
+  signal: 'buy' | 'sell' | 'hold'; // Add missing signal property
 }
 
 // Add PatternDetection interface

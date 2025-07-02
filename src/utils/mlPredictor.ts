@@ -1,5 +1,5 @@
 
-import { CandlestickData, MLPrediction } from '@/types/trading';
+import { CandlestickData, MLPrediction, CandleData } from '@/types/trading';
 
 export class MLPredictor {
   private static model: any = null;
@@ -44,6 +44,12 @@ export class MLPredictor {
       message: 'Modelo entrenado exitosamente',
       epochsCompleted: 100
     };
+  }
+
+  // Static predict method for compatibility
+  static predict(candles: CandlestickData[]): MLPrediction {
+    const instance = new MLPredictor();
+    return instance.predict(candles);
   }
 
   predict(candles: CandlestickData[]): MLPrediction {
