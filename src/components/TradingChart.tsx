@@ -4,11 +4,19 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { CandleData, CandlestickData, CandlePattern, MLPrediction, PatternDetection } from '@/types/trading';
 import { format } from 'date-fns';
 
+/**
+ * Props for the TradingChart component
+ */
 interface TradingChartProps {
+  /** Legacy data prop for backwards compatibility */
   data?: CandlestickData[];
+  /** Current candle data to display */
   candles?: CandleData[];
+  /** Detected patterns to highlight on the chart */
   patterns?: (CandlePattern | PatternDetection)[];
+  /** ML predictions array (legacy) */
   predictions?: MLPrediction[];
+  /** Current ML prediction to display */
   prediction?: {
     timestamp: number;
     value: number;
@@ -16,6 +24,26 @@ interface TradingChartProps {
   };
 }
 
+/**
+ * TradingChart - Main chart component for displaying candlestick data, patterns, and predictions
+ * 
+ * This component renders a line chart representation of candlestick data with overlays for:
+ * - Detected candlestick patterns (Hammer, Doji, Engulfing)
+ * - ML predictions with confidence levels
+ * - High/Low ranges and close prices
+ * 
+ * @example
+ * ```tsx
+ * <TradingChart 
+ *   candles={candleData} 
+ *   patterns={detectedPatterns}
+ *   prediction={currentPrediction}
+ * />
+ * ```
+ * 
+ * @param props - The component props
+ * @returns JSX element representing the trading chart
+ */
 const TradingChart = ({ data, candles, patterns = [], predictions, prediction }: TradingChartProps) => {
   // Use data or candles, with data taking precedence for backwards compatibility
   const candleData = data || candles || [];
@@ -54,6 +82,9 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
     });
   }
 
+  /**
+   * Custom tooltip component for displaying OHLC data on hover
+   */
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -75,11 +106,20 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
     return null;
   };
 
-  // Type guard functions
+  /**
+   * Type guard to check if a pattern is a CandlePattern
+   * @param pattern - The pattern to check
+   * @returns True if the pattern is a CandlePattern
+   */
   const isCandlePattern = (pattern: CandlePattern | PatternDetection): pattern is CandlePattern => {
     return 'position' in pattern;
   };
 
+  /**
+   * Type guard to check if a pattern is a PatternDetection
+   * @param pattern - The pattern to check
+   * @returns True if the pattern is a PatternDetection
+   */
   const isPatternDetection = (pattern: CandlePattern | PatternDetection): pattern is PatternDetection => {
     return 'candleIndex' in pattern;
   };
