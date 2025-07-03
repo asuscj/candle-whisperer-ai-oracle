@@ -75,6 +75,15 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
     return null;
   };
 
+  // Type guard functions
+  const isCandlePattern = (pattern: CandlePattern | PatternDetection): pattern is CandlePattern => {
+    return 'position' in pattern;
+  };
+
+  const isPatternDetection = (pattern: CandlePattern | PatternDetection): pattern is PatternDetection => {
+    return 'candleIndex' in pattern;
+  };
+
   return (
     <div data-testid="trading-chart" className="bg-gray-900 rounded-lg p-4">
       <ResponsiveContainer width="100%" height={400}>
@@ -120,17 +129,15 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
           />
 
           {/* Pattern markers */}
-          {patterns.map((pattern: CandlePattern | PatternDetection, index) => {
-            // Handle both CandlePattern and PatternDetection types with explicit type checking
+          {patterns.map((pattern, index) => {
+            // Use type guards to properly handle union types
             let position: number;
             let patternName: string;
             
-            if ('position' in pattern) {
-              // This is a CandlePattern
+            if (isCandlePattern(pattern)) {
               position = pattern.position;
               patternName = pattern.name;
-            } else if ('candleIndex' in pattern) {
-              // This is a PatternDetection
+            } else if (isPatternDetection(pattern)) {
               position = pattern.candleIndex;
               patternName = pattern.name;
             } else {
@@ -144,7 +151,7 @@ const TradingChart = ({ data, candles, patterns = [], predictions, prediction }:
             let strokeColor = '#F59E0B'; // Default yellow
             
             // Check if it's a CandlePattern with type property
-            if ('type' in pattern && typeof pattern.type === 'string') {
+            if (isCandlePattern(pattern) && pattern.type) {
               if (pattern.type === 'bullish') strokeColor = '#10B981';
               else if (pattern.type === 'bearish') strokeColor = '#EF4444';
             }
