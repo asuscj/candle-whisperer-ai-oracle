@@ -1,5 +1,6 @@
 
 import { CandleData, TradingPair } from '@/types/trading';
+import { YahooFinanceAPI } from './yahooFinanceAPI';
 
 export class DataProvider {
   private static generateRealisticCandle(
@@ -37,7 +38,12 @@ export class DataProvider {
       'ETHUSDT': 2650,
       'EURUSD': 1.0845,
       'GBPUSD': 1.2721,
-      'USDJPY': 150.25
+      'USDJPY': 150.25,
+      'AAPL': 175.50,
+      'GOOGL': 142.30,
+      'TSLA': 248.75,
+      'MSFT': 378.25,
+      'NVDA': 875.40
     };
 
     const basePrice = basePrices[pair.symbol] || 1.0;
@@ -55,7 +61,8 @@ export class DataProvider {
     // Generate subsequent candles with realistic patterns
     for (let i = 1; i < count; i++) {
       let trend = 0;
-      let volatility = pair.market === 'crypto' ? 0.025 : 0.008;
+      let volatility = pair.market === 'crypto' ? 0.025 : 
+                      pair.market === 'stocks' ? 0.015 : 0.008;
 
       // Add some trending behavior
       if (i % 20 < 10) {
@@ -74,21 +81,86 @@ export class DataProvider {
     return candles;
   }
 
-  static async fetchRealTimeData(pair: TradingPair): Promise<CandleData[]> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // In a real implementation, this would fetch from Binance, Alpha Vantage, etc.
+  /**
+   * Fetches real-time data from Yahoo Finance or falls back to simulated data
+   */
+  static async fetchRealTimeData(
+    pair: TradingPair, 
+    interval: string = '1m', 
+    range: string = '1d'
+  ): Promise<CandleData[]> {
+    // Try to fetch real data from Yahoo Finance first
+    if (YahooFinanceAPI.isAvailable() && YahooFinanceAPI.isSymbolSupported(pair.symbol)) {
+      try {
+        console.log(`Fetching real data for ${pair.symbol} from Yahoo Finance`);
+        const realData = await YahooFinanceAPI.fetchHistoricalData(pair, interval, range);
+        
+        if (realData.length > 0) {
+          console.log(`✅ Successfully loaded ${realData.length} real candles for ${pair.symbol}`);
+          return realData;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Failed to fetch real data for ${pair.symbol}, falling back to simulated data:`, error);
+      }
+    }
+
+    // Fallback to simulated data
+    console.log(`📊 Using simulated data for ${pair.symbol}`);
     return this.generateHistoricalData(pair, 100);
   }
 
+  /**
+   * Gets current price from Yahoo Finance or simulated data
+   */
+  static async getCurrentPrice(pair: TradingPair): Promise<number> {
+    if (YahooFinanceAPI.isAvailable() && YahooFinanceAPI.isSymbolSupported(pair.symbol)) {
+      try {
+        return await YahooFinanceAPI.fetchCurrentPrice(pair);
+      } catch (error) {
+        console.warn(`Failed to fetch current price for ${pair.symbol}:`, error);
+      }
+    }
+
+    // Fallback to simulated data
+    const simulatedData = this.generateHistoricalData(pair, 1);
+    return simulatedData[0].close;
+  }
+
   static getAvailablePairs(): TradingPair[] {
-    return [
-      { symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT', market: 'crypto' },
-      { symbol: 'ETHUSDT', baseAsset: 'ETH', quoteAsset: 'USDT', market: 'crypto' },
-      { symbol: 'EURUSD', baseAsset: 'EUR', quoteAsset: 'USD', market: 'forex' },
-      { symbol: 'GBPUSD', baseAsset: 'GBP', quoteAsset: 'USD', market: 'forex' },
-      { symbol: 'USDJPY', baseAsset: 'USD', quoteAsset: 'JPY', market: 'forex' }
+    // Combine Yahoo Finance supported pairs with original pairs
+    const yahooFinancePairs = YahooFinanceAPI.getSupportedPairs();
+    const originalPairs = [
+      { symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT', market: 'crypto' as const },
+      { symbol: 'ETHUSDT', baseAsset: 'ETH', quoteAsset: 'USDT', market: 'crypto' as const },
+      { symbol: 'EURUSD', baseAsset: 'EUR', quoteAsset: 'USD', market: 'forex' as const },
+      { symbol: 'GBPUSD', baseAsset: 'GBP', quoteAsset: 'USD', market: 'forex' as const },
+      { symbol: 'USDJPY', baseAsset: 'USD', quoteAsset: 'JPY', market: 'forex' as const }
     ];
+
+    // Merge and deduplicate by symbol
+    const allPairs = [...yahooFinancePairs, ...originalPairs];
+    const uniquePairs = allPairs.filter((pair, index, self) => 
+      index === self.findIndex(p => p.symbol === pair.symbol)
+    );
+
+    return uniquePairs;
+  }
+
+  /**
+   * Checks if real data is available and configured
+   */
+  static isRealDataAvailable(): boolean {
+    return YahooFinanceAPI.isAvailable();
+  }
+
+  /**
+   * Gets data source information
+   */
+  static getDataSourceInfo(): { source: string; available: boolean; supportedPairs: number } {
+    return {
+      source: YahooFinanceAPI.isAvailable() ? 'Yahoo Finance API' : 'Simulated Data',
+      available: YahooFinanceAPI.isAvailable(),
+      supportedPairs: YahooFinanceAPI.getSupportedPairs().length
+    };
   }
 }

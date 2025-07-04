@@ -36,7 +36,7 @@ export interface TradingPair {
   symbol: string;
   baseAsset: string;
   quoteAsset: string;
-  market: 'forex' | 'crypto';
+  market: 'forex' | 'crypto' | 'stocks'; // Added stocks market
 }
 
 export interface MLPrediction {
@@ -88,4 +88,16 @@ export interface OnlineLearningMetrics {
   memoryUsage: number;
   lastUpdate: number;
   adaptationRate: number;
+}
+
+// New interface for data source information
+export interface DataSourceInfo {
+  source: string;
+  available: boolean;
+  supportedPairs: number;
+  lastUpdate?: number;
+  rateLimit?: {
+    remaining: number;
+    resetTime: number;
+  };
 }
